@@ -1,0 +1,292 @@
+
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Director de Arte - Gemini AI</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+</head>
+
+<body class="bg-zinc-900 min-h-screen p-4 md:p-8 font-sans text-zinc-100 flex justify-center">
+
+    <div id="app" class="w-full max-w-2xl flex flex-col h-[90vh] bg-zinc-800 rounded-2xl border border-zinc-700 shadow-2xl overflow-hidden">
+
+        <!-- Header -->
+        <header class="bg-zinc-900 border-b border-zinc-700 p-4">
+            <h1 class="text-xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-blue-700 flex items-center gap-2">
+                <svg class="w-6 h-6 text-purple-500" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M12 2L2 22h20L12 2zm0 4.5l6.5 13.5H5.5L12 6.5z"/>
+                </svg>
+                Director de Arte Automático Rick and Morty 
+            </h1>
+        </header>
+
+        <main class="flex-1 overflow-y-auto p-6 flex flex-col">
+
+            <!-- Buscar personaje -->
+            <div class="mb-6">
+                <label class="block text-sm text-zinc-300 mb-2">
+                    Personaje de Rick and Morty
+                </label>
+
+                <div class="flex gap-2">
+                    <input
+                        v-model="nombrePersonaje"
+                        @keyup.enter="buscarPersonajes"
+                        type="text"
+                        placeholder="Ej. Rick, Morty, Summer..."
+                        class="flex-1 min-w-0 bg-zinc-900 border border-zinc-600 rounded-xl px-4 py-3 text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-blue-500"
+                    >
+
+                    <button
+                        @click="buscarPersonajes"
+                        :disabled="buscandoPersonajes || !nombrePersonaje.trim()"
+                        class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-3 rounded-xl font-semibold disabled:opacity-50"
+                    >
+                        Buscar
+                    </button>
+                </div>
+
+                <p v-if="mensajePersonajes" class="text-sm text-zinc-400 mt-2">
+                    {{ mensajePersonajes }}
+                </p>
+
+                <div v-if="personajes.length" class="grid grid-cols-2 sm:grid-cols-3 gap-3 mt-4">
+                    <button
+                        v-for="personaje in personajes"
+                        :key="personaje.id"
+                        @click="seleccionarPersonaje(personaje)"
+                        class="text-left bg-zinc-900 border rounded-xl overflow-hidden"
+                        :class="personajeSeleccionado && personajeSeleccionado.id === personaje.id ? 'border-purple-400' : 'border-zinc-700 hover:border-blue-500'"
+                    >
+                        <img
+                            :src="personaje.image"
+                            :alt="personaje.name"
+                            class="w-full aspect-square object-cover"
+                        >
+
+                        <div class="p-3">
+                            <p class="font-semibold text-sm">{{ personaje.name }}</p>
+                            <p class="text-xs text-zinc-400">{{ personaje.species }}</p>
+                        </div>
+                    </button>
+                </div>
+
+                <div v-if="personajeSeleccionado" class="mt-4 bg-zinc-900 border border-zinc-700 rounded-xl p-3 flex gap-3 items-center">
+                    <img
+                        :src="personajeSeleccionado.image"
+                        :alt="personajeSeleccionado.name"
+                        class="w-16 h-16 rounded-lg object-cover"
+                    >
+
+                    <div>
+                        <p class="text-xs text-emerald-400">Personaje seleccionado</p>
+                        <p class="font-bold">{{ personajeSeleccionado.name }}</p>
+                        <p class="text-xs text-zinc-400">
+                            {{ personajeSeleccionado.species }} · {{ personajeSeleccionado.status }}
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <div v-if="!respuestaIA && !estaCargando" class="m-auto text-zinc-500 text-center max-w-sm">
+                <p class="text-4xl mb-4">✨</p>
+                <p>Describe tu proyecto de diseño gráfico y el motor de Google Gemini generará tu dirección de arte.</p>
+            </div>
+
+            <!-- Loader Visual -->
+            <div v-if="estaCargando" class="flex flex-col items-center justify-center my-auto space-y-4">
+                <div class="w-12 h-12 border-4 border-zinc-700 border-t-emerald-500 rounded-full animate-spin"></div>
+                <span class="text-emerald-400 text-sm font-medium tracking-widest animate-pulse">
+                    EVALUANDO CONCEPTOS...
+                </span>
+            </div>
+
+            <!-- Respuesta de Gemini -->
+            <div v-if="respuestaIA && !estaCargando" class="bg-zinc-700/50 p-6 rounded-xl border border-zinc-600 shadow-inner text-zinc-200 whitespace-pre-wrap leading-relaxed">
+                {{ respuestaIA }}
+            </div>
+
+        </main>
+
+        <!-- Zona de Input -->
+        <footer class="p-4 bg-zinc-900 border-t border-zinc-700">
+            <div class="flex gap-2">
+                <input
+                    v-model="promptUsuario"
+                    @keyup.enter="consultarIA"
+                    :disabled="estaCargando"
+                    type="text"
+                    placeholder="Ej. Diseño UI de una app de música inspirada en Rick and Morty......"
+                    class="flex-1 bg-zinc-800 border border-zinc-600 rounded-xl px-4 py-3 text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-blue-500 transition-colors disabled:opacity-50"
+                >
+
+                <button
+                    @click="consultarIA"
+                    :disabled="estaCargando || !promptUsuario.trim()"
+                    class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center min-w-[100px]"
+                >
+                    <span v-if="!estaCargando">Generar</span>
+                    <span v-else class="text-xs">⏳</span>
+                </button>
+            </div>
+        </footer>
+
+    </div>
+
+    <script>
+        const { createApp, ref } = Vue;
+
+        createApp({
+            setup() {
+
+                const promptUsuario = ref('');
+                const respuestaIA = ref('');
+                const estaCargando = ref(false);
+
+                const nombrePersonaje = ref('');
+                const personajes = ref([]);
+                const personajeSeleccionado = ref(null);
+                const mensajePersonajes = ref('');
+                const buscandoPersonajes = ref(false);
+
+                const GEMINI_API_KEY = 'AQ.Ab8RN6KamrKd95J339vFoh8IlYRU0gYKLf5niPfzkU_1CMG9hw';
+
+                // Buscar personajes en Rick and Morty
+                const buscarPersonajes = async () => {
+                    if (!nombrePersonaje.value.trim()) {
+                        return;
+                    }
+
+                    buscandoPersonajes.value = true;
+                    mensajePersonajes.value = '';
+                    personajes.value = [];
+                    personajeSeleccionado.value = null;
+
+                    try {
+                        const nombre = encodeURIComponent(nombrePersonaje.value.trim());
+
+                        const respuesta = await fetch(
+                            `https://rickandmortyapi.com/api/character/?name=${nombre}`
+                        );
+
+                        if (!respuesta.ok) {
+                            if (respuesta.status === 404) {
+                                throw new Error('No se encontraron personajes.');
+                            }
+
+                            throw new Error('No se pudieron cargar los personajes.');
+                        }
+
+                        const datos = await respuesta.json();
+                        personajes.value = datos.results;
+
+                        mensajePersonajes.value = 'Selecciona un personaje de la lista.';
+
+                    } catch (error) {
+                        mensajePersonajes.value = error.message;
+                    } finally {
+                        buscandoPersonajes.value = false;
+                    }
+                };
+
+                // Seleccionar personaje
+                const seleccionarPersonaje = (personaje) => {
+                    personajeSeleccionado.value = personaje;
+                    respuestaIA.value = '';
+                };
+
+                // Consultar Gemini
+                const consultarIA = async () => {
+                    if (!promptUsuario.value.trim()) {
+                        return;
+                    }
+
+                    estaCargando.value = true;
+                    respuestaIA.value = '';
+
+                    const url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent';
+
+                    let datosPersonaje = '';
+
+                    if (personajeSeleccionado.value) {
+                        const personaje = personajeSeleccionado.value;
+
+                        datosPersonaje = `
+                            Personaje: ${personaje.name}
+                            Especie: ${personaje.species}
+                            Estado: ${personaje.status}
+                            Origen: ${personaje.origin.name}
+                            Ubicación: ${personaje.location.name}
+                        `;
+                    }
+
+                    const payload = {
+                        systemInstruction: {
+                            parts: [{
+                                text: "Eres un Director de Arte experto. Responde de forma concisa sugiriendo conceptos visuales, tipografías y paletas de colores en hexadecimal. Usa viñetas. Si el usuario selecciona un personaje de Rick and Morty, utilízalo como inspiración para la propuesta visual."
+                            }]
+                        },
+                        contents: [{
+                            parts: [{
+                                text: `
+                                    Proyecto de diseño:
+                                    ${promptUsuario.value}
+
+                                    Datos del personaje:
+                                    ${datosPersonaje}
+                                `
+                            }]
+                        }],
+                        generationConfig: {
+                            temperature: 0.7
+                        }
+                    };
+
+                    try {
+                        const respuesta = await fetch(url, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'x-goog-api-key': GEMINI_API_KEY
+                            },
+                            body: JSON.stringify(payload)
+                        });
+
+                        if (!respuesta.ok) {
+                            throw new Error(`Error HTTP: ${respuesta.status}`);
+                        }
+
+                        const datos = await respuesta.json();
+                        respuestaIA.value = datos.candidates[0].content.parts[0].text;
+
+                    } catch (error) {
+                        console.error("Fallo técnico:", error);
+                        respuestaIA.value = "Hubo un error de conexión con la IA. Revisa la consola.";
+                    } finally {
+                        estaCargando.value = false;
+                        promptUsuario.value = '';
+                    }
+                };
+
+                return {
+                    promptUsuario,
+                    respuestaIA,
+                    estaCargando,
+                    nombrePersonaje,
+                    personajes,
+                    personajeSeleccionado,
+                    mensajePersonajes,
+                    buscandoPersonajes,
+                    buscarPersonajes,
+                    seleccionarPersonaje,
+                    consultarIA
+                };
+            }
+        }).mount('#app');
+    </script>
+
+</body>
+</html>
